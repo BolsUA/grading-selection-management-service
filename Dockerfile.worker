@@ -1,0 +1,15 @@
+# Worker Dockerfile
+FROM python:3.9-slim
+
+# Set the working directory
+WORKDIR /app
+
+# Copy requirements and install dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy the worker script into the container
+COPY email_worker.py .
+
+# Set the default command to run the worker
+CMD ["python3", "email_worker.py"]
