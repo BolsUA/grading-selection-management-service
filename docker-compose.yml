@@ -18,6 +18,8 @@ services:
       - DB_PORT=5432
       - RABBITMQ_HOST=rabbitmq
       - RABBITMQ_PORT=5672
+    networks:
+      - rabbitmq_network
 
   db3:
     image: postgres:13
@@ -27,6 +29,8 @@ services:
       POSTGRES_DB: grading_db
     ports:
       - "5434:5432"
+    networks:
+      - rabbitmq_network
 
   rabbitmq:
     image: rabbitmq:3-management
@@ -42,6 +46,8 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    networks:
+      - rabbitmq_network
 
   email_worker:
     build:
@@ -57,3 +63,9 @@ services:
       - SMTP_PORT=587
       - SMTP_USERNAME=testingrabbitmq@gmail.com
       - SMTP_PASSWORD=paqv mvbb iqnp lhhr
+    networks:
+      - rabbitmq_network
+
+networks:
+  rabbitmq_network:
+    name: rabbitmq_network  

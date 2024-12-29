@@ -17,22 +17,29 @@ def send_to_rabbitmq(notifications: list):
     connection = pika.BlockingConnection(pika.ConnectionParameters(rabbitmq_host))
     channel = connection.channel()
 
-    # Declare the queue
-    channel.queue_declare(queue='notification_queue', durable=True)
+    # Declare the queues
+    channel.queue_declare(queue='notification_queue', durable=True)  # For email worker
+    channel.queue_declare(queue='grading_queue', durable=True)      # For grading consumer
 
-    # Publish each notification to the queue
+    # Publish each notification to both queues
     for notification in notifications:
+        # Send to notification_queue
         channel.basic_publish(
             exchange='',
             routing_key='notification_queue',
             body=json.dumps(notification.dict()),
             properties=pika.BasicProperties(delivery_mode=2)
         )
+        # Send to grading_queue
+        channel.basic_publish(
+            exchange='',
+            routing_key='grading_queue',
+            body=json.dumps(notification.dict()),
+            properties=pika.BasicProperties(delivery_mode=2)
+        )
 
     connection.close()
 
-
-# This function is a dummy function to simulate grading results and sending notifications using RabbitMQ
 @router.post("/submit_results")
 def submit_results(db: Session = Depends(get_db)):
     # Fetch all dummy students from the database
