@@ -12,6 +12,7 @@ class Notification(BaseModel):
     details: Optional[str] = None  # Either grade or rejection reason
 
 class GradeRequest(BaseModel):
+    application_id: int
     scholarship_id: int
     student_id: str
     grade: Union[float, str]

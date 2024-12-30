@@ -64,20 +64,35 @@ def send_to_rabbitmq(notifications: list):
 
     connection.close()
 
+@router.get("/grades")
+def get_grades(
+    token: TokenDep,
+    scholarship_id: int,
+    db: Session = Depends(get_db)
+):
+    jury_id = token["sub"]
+    results = crud_grading.get_grading_results_by_jury(db, scholarship_id, jury_id)
+
+    return results
+
 @router.post("/grade")
 def grade_student(
-    _: TokenDep,
+    token: TokenDep,
     grade_data: GradeRequest,
     db: Session = Depends(get_db),
 ):
     grade = grade_data.grade
+    application_id = grade_data.application_id
     scholarship_id = grade_data.scholarship_id
     student_id = grade_data.student_id
 
     finalGrade = grade if isinstance(grade, float) else None
     reason = grade if isinstance(grade, str) else None
 
-    crud_grading.save_grading_result(db, scholarship_id, student_id, finalGrade, reason)
+    result = crud_grading.save_grading_result(db, token, application_id, scholarship_id, student_id, finalGrade, reason)
+
+    if not result:
+        raise HTTPException(status_code=400, detail="Student already graded.")
 
     return {"message": "Student graded successfully."}
 
