@@ -1,17 +1,20 @@
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Optional, List, Union
 from datetime import datetime
 from enum import Enum
 from pydantic import BaseModel
 
-class StudentResult(BaseModel):
-    id: int
-    grade: Optional[float] = None  # Grade is optional for rejected students
-    reason: Optional[str] = None   # Reason is required for rejected students
-
 class Notification(BaseModel):
-    student_id: int
+    student_id: str
     name: str
     email: str
     status: str  # "Accepted" or "Rejected"
     details: Optional[str] = None  # Either grade or rejection reason
+
+class GradeRequest(BaseModel):
+    scholarship_id: int
+    student_id: str
+    grade: Union[float, str]
+
+class SubmitRequest(BaseModel):
+    scholarship_id: int

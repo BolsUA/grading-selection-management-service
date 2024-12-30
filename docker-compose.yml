@@ -18,8 +18,12 @@ services:
       - DB_PORT=5432
       - RABBITMQ_HOST=rabbitmq
       - RABBITMQ_PORT=5672
+      - REGION=us-east-1
+      - USER_POOL_ID=
     networks:
       - rabbitmq_network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   db3:
     image: postgres:13
@@ -28,7 +32,7 @@ services:
       POSTGRES_PASSWORD: password3
       POSTGRES_DB: grading_db
     ports:
-      - "5434:5432"
+      - "5435:5432"
     networks:
       - rabbitmq_network
 
