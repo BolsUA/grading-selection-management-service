@@ -47,22 +47,26 @@ def send_to_rabbitmq(notifications: list):
 
     # Publish each notification to both queues
     for notification in notifications:
+        notification_dict = notification.dict()
+        
         # Send to notification_queue
         channel.basic_publish(
             exchange='',
             routing_key='notification_queue',
-            body=json.dumps(notification.dict()),
+            body=json.dumps(notification_dict),
             properties=pika.BasicProperties(delivery_mode=2)
         )
+        
         # Send to grading_queue
         channel.basic_publish(
             exchange='',
             routing_key='grading_queue',
-            body=json.dumps(notification.dict()),
+            body=json.dumps(notification_dict),
             properties=pika.BasicProperties(delivery_mode=2)
         )
 
     connection.close()
+    print("Connection to RabbitMQ closed")
 
 @router.get("/grades")
 def get_grades(
@@ -102,29 +106,78 @@ def submit_results(
     submit_data: SubmitRequest,
     db: Session = Depends(get_db)
 ):
+    
+    if crud_grading.check_scholarship_completed(db, submit_data.scholarship_id):
+        return {"message": "Results already submitted for this scholarship."}
+
     notifications = []
 
+    # Fetch all grading results for the scholarship
     grading_results = crud_grading.get_grading_results(db, submit_data.scholarship_id)
-    student_ids = [result.student_id for result in grading_results]
-    # TODO: Change the URL to the correct domain
-    students = requests.post(f"http://host.docker.internal:8000/people/internal/users/bulk", json={"user_ids": student_ids}).json()
 
+    if not grading_results:
+        return {"message": "No grading results found for this scholarship."}
+
+    # Group grading results by application_id
+    grouped_results = {}
     for result in grading_results:
-        student = next((student for student in students if student["id"] == result.student_id), None)
-        if student is None:
+        grouped_results.setdefault(result.application_id, []).append(result)
+
+    final_results = []
+    for application_id, results in grouped_results.items():
+        # Check if all juries have graded this application
+        total_juries = submit_data.juryamount
+        all_juries_graded = len(results) == total_juries
+        if not all_juries_graded:
+            return {"message": "Not all juries have graded all applications."}
+
+        # Determine the final status of the application
+        rejected_reasons = [result.reason for result in results if result.grade is None]
+        if rejected_reasons:
+            # Application is rejected if any jury rejected it
+            final_results.append({
+                "application_id": application_id,
+                "student_id": results[0].student_id,
+                "status": "Rejected",
+                "reason": "; ".join(rejected_reasons)  # Combine all rejection reasons
+            })
+        else:
+            # Compute average grade for accepted applications
+            average_grade = sum(result.grade for result in results) / len(results)
+            final_results.append({
+                "application_id": application_id,
+                "student_id": results[0].student_id,
+                "status": "Accepted",
+                "grade": average_grade
+            })
+
+    # Notify students about their results
+    student_ids = [result["student_id"] for result in final_results]
+    students = requests.post(
+        f"http://host.docker.internal:8000/people/internal/users/bulk",
+        json={"user_ids": student_ids}
+    ).json()
+
+    for result in final_results:
+        student = next((student for student in students if student["id"] == result["student_id"]), None)
+        if not student:
             continue
 
-        status = "Accepted" if result.grade else "Rejected"
-        details = f"Grade: {result.grade}" if result.grade else result.reason
+        status = result["status"]
+        details = (
+            f"Grade: {result['grade']:.2f}" if "grade" in result else result["reason"]
+        )
 
         notifications.append(Notification(
-            student_id=result.student_id,
+            student_id=student["id"],
             name=student["name"],
             email=student["email"],
             status=status,
             details=details
         ))
 
+    # Send notifications to RabbitMQ
+    #print(notifications)
     send_to_rabbitmq(notifications)
-
+    crud_grading.save_scholarship_completed(db, submit_data.scholarship_id)
     return {"message": "Results submitted successfully."}

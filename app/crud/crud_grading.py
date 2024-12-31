@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from app.models.models import GradingResult
+from app.models.models import GradingResult, SubmissionCompleted
 
 def save_grading_result(db: Session, token, application_id: int, scholarship_id: int, student_id: str, grade: float, reason: str):
     jury_id = token["sub"]
@@ -37,3 +37,44 @@ def get_grading_results_by_jury(db: Session, scholarship_id: int, jury_id: str):
         GradingResult.scholarship_id == scholarship_id,
         GradingResult.jury_id == jury_id
     ).all()
+
+def save_grading_result(db: Session, token, application_id: int, scholarship_id: int, student_id: str, grade: float, reason: str):
+    jury_id = token["sub"]
+
+    # Check if the jury has already graded the student
+    existing_result = db.query(GradingResult).filter(
+        GradingResult.application_id == application_id,
+        GradingResult.scholarship_id == scholarship_id,
+        GradingResult.jury_id == jury_id,
+        GradingResult.student_id == student_id
+    ).first()
+
+    if existing_result:
+        return False
+
+    # Save the grading result
+    grading_result = GradingResult(
+        application_id=application_id,
+        scholarship_id=scholarship_id,
+        jury_id=jury_id,
+        student_id=student_id,
+        grade=grade,
+        reason=reason
+    )
+    db.add(grading_result)
+    db.commit()
+    db.refresh(grading_result)
+
+    return grading_result
+
+def save_scholarship_completed(db: Session, scholarship_id: int):
+    submission_completed = SubmissionCompleted(
+        scholarship_id=scholarship_id
+    )
+    db.add(submission_completed)
+    db.commit()
+    db.refresh(submission_completed)
+    return submission_completed
+
+def check_scholarship_completed(db: Session, scholarship_id: int):
+    return db.query(SubmissionCompleted).filter(SubmissionCompleted.scholarship_id == scholarship_id).first()
