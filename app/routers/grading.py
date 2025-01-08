@@ -12,10 +12,19 @@ from app.schemas.schemas import GradeRequest, Notification, SubmitRequest
 from app.db.session import get_db
 from app.core.config import settings
 from jwt import PyJWKClient
+import boto3
+import json
+import logging
 
 router = APIRouter()
 
 oauth2_scheme = HTTPBearer()
+
+
+QUEUE_URL = str(os.getenv("QUEUE_URL2"))
+AWS_ACESS_KEY_ID = str(os.getenv("AWS_ACCESS_KEY_ID"))
+AWS_SECRET_ACCESS_KEY = str(os.getenv("AWS_SECRET_ACCESS_KEY"))
+REGION = str(os.getenv("REGION"))
 
 def verify_token(credentials: HTTPAuthorizationCredentials = Depends(oauth2_scheme)):
     token = credentials.credentials
@@ -106,11 +115,11 @@ def submit_results(
     submit_data: SubmitRequest,
     db: Session = Depends(get_db)
 ):
-    
     if crud_grading.check_scholarship_completed(db, submit_data.scholarship_id):
         return {"message": "Results already submitted for this scholarship."}
 
     notifications = []
+    message = { "applications": [] }
 
     # Fetch all grading results for the scholarship
     grading_results = crud_grading.get_grading_results(db, submit_data.scholarship_id)
@@ -168,6 +177,13 @@ def submit_results(
             f"Grade: {result['grade']:.2f}" if "grade" in result else result["reason"]
         )
 
+        message["applications"].append({
+            "id": result["application_id"],
+            "status": status,
+            "grade": result.get("grade", None),
+            "reason": result.get("reason", None)
+        })
+
         notifications.append(Notification(
             student_id=student["id"],
             name=student["name"],
@@ -178,6 +194,24 @@ def submit_results(
 
     # Send notifications to RabbitMQ
     #print(notifications)
+    send_to_sqs(message)
     send_to_rabbitmq(notifications)
     crud_grading.save_scholarship_completed(db, submit_data.scholarship_id)
     return {"message": "Results submitted successfully."}
+
+### SQS HANDLING ###
+
+sqs = boto3.client(
+    'sqs',
+    aws_access_key_id=AWS_ACESS_KEY_ID,
+    aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
+    region_name=REGION
+)
+
+def send_to_sqs(message: dict):
+    response = sqs.send_message(
+        QueueUrl=QUEUE_URL,
+        MessageBody=json.dumps(message),
+    )
+    print(f"Message sent to SQS: {response['MessageId']}")
+    return response
