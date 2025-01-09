@@ -13,3 +13,15 @@ class GradingResult(SQLModel, table=True):
 class SubmissionCompleted(SQLModel, table=True):
     id: int = Field(default=None, primary_key=True)
     scholarship_id: int
+
+
+class Application(SQLModel, table=True):
+    id: int = Field(default=None, primary_key=True)
+    scholarship_id: int
+    user_id: str
+    name: str
+
+class ScholarshipJury(SQLModel, table=True):
+    id: int = Field(default=None, primary_key=True)
+    scholarship_id: int
+    juryamount: int

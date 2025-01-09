@@ -19,4 +19,3 @@ class GradeRequest(BaseModel):
 
 class SubmitRequest(BaseModel):
     scholarship_id: int
-    juryamount: int

@@ -15,13 +15,15 @@ from jwt import PyJWKClient
 import boto3
 import json
 import logging
+from apscheduler.schedulers.background import BackgroundScheduler
 
 router = APIRouter()
 
 oauth2_scheme = HTTPBearer()
 
 
-QUEUE_URL = str(os.getenv("QUEUE_URL2"))
+TO_GRADING_QUEUE_URL = str(os.getenv("TO_GRADING_QUEUE_URL"))
+APP_GRADING_QUEUE_URL = str(os.getenv("APP_GRADING_QUEUE_URL"))
 AWS_ACESS_KEY_ID = str(os.getenv("AWS_ACCESS_KEY_ID"))
 AWS_SECRET_ACCESS_KEY = str(os.getenv("AWS_SECRET_ACCESS_KEY"))
 REGION = str(os.getenv("REGION"))
@@ -135,7 +137,7 @@ def submit_results(
     final_results = []
     for application_id, results in grouped_results.items():
         # Check if all juries have graded this application
-        total_juries = submit_data.juryamount
+        total_juries = crud_grading.get_jury_amount_by_scholarship(db, submit_data.scholarship_id)
         all_juries_graded = len(results) == total_juries
         if not all_juries_graded:
             return {"message": "Not all juries have graded all applications."}
@@ -178,7 +180,7 @@ def submit_results(
         )
 
         message["applications"].append({
-            "id": result["application_id"],
+            "application_id": result["application_id"],
             "status": status,
             "grade": result.get("grade", None),
             "reason": result.get("reason", None)
@@ -193,11 +195,18 @@ def submit_results(
         ))
 
     # Send notifications to RabbitMQ
-    #print(notifications)
     send_to_sqs(message)
     send_to_rabbitmq(notifications)
     crud_grading.save_scholarship_completed(db, submit_data.scholarship_id)
     return {"message": "Results submitted successfully."}
+
+@router.get("/applications/{scholarship_id}")
+def get_applications_by_scholarship(
+    scholarship_id: int,
+    db: Session = Depends(get_db)
+):
+    applications = crud_grading.get_applications_by_scholarship(db, scholarship_id)
+    return applications
 
 ### SQS HANDLING ###
 
@@ -208,10 +217,50 @@ sqs = boto3.client(
     region_name=REGION
 )
 
+def process_message(message):
+    body = json.loads(message['Body'])
+    # Create an application based on the received message and commit it to the db
+    crud_grading.save_scholarship_jury(
+        db=next(get_db()), 
+        scholarship_id=body['scholarship_id'], 
+        juryamount=len(body['jury_ids'])
+    )
+    
+    for application in body['applications']:
+        crud_grading.save_application(
+            db=next(get_db()),
+            scholarship_id=application['scholarship_id'],
+            user_id=application['user_id'],
+            name=application['name']
+        )
+    
+
 def send_to_sqs(message: dict):
     response = sqs.send_message(
-        QueueUrl=QUEUE_URL,
+        QueueUrl=APP_GRADING_QUEUE_URL,
         MessageBody=json.dumps(message),
     )
     print(f"Message sent to SQS: {response['MessageId']}")
     return response
+
+def receive_message():
+    response = sqs.receive_message(
+        QueueUrl=TO_GRADING_QUEUE_URL,
+        MaxNumberOfMessages=1,
+        WaitTimeSeconds=5,
+    )
+    messages = response.get('Messages', [])
+    for message in messages:
+        body = json.loads(message['Body'])
+        logging.info(f"Received message: {body}")
+        process_message(message)
+        # Delete the message from the queue
+        # sqs.delete_message(
+        #     QueueUrl=TO_GRADING_QUEUE_URL,
+        #     ReceiptHandle=message['ReceiptHandle']
+        # )
+
+scheduler = BackgroundScheduler()
+scheduler.add_job(receive_message, 'interval', seconds=2, max_instances=10)
+logging.getLogger('apscheduler.executors.default').setLevel(logging.WARNING)
+scheduler.start()
