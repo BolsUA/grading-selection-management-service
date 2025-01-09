@@ -1,5 +1,6 @@
 from sqlalchemy.orm import Session
 from app.models.models import GradingResult, SubmissionCompleted
+from app.schemas.schemas import UserResponse
 
 def save_grading_result(db: Session, token, application_id: int, scholarship_id: int, student_id: str, grade: float, reason: str):
     jury_id = token["sub"]
@@ -78,3 +79,11 @@ def save_scholarship_completed(db: Session, scholarship_id: int):
 
 def check_scholarship_completed(db: Session, scholarship_id: int):
     return db.query(SubmissionCompleted).filter(SubmissionCompleted.scholarship_id == scholarship_id).first()
+
+def update_application_response(db: Session, application_id: int, user_response: UserResponse):
+    db_application = db.query(GradingResult).filter(GradingResult.application_id == application_id).first()
+    db_application.user_response = user_response 
+    db.commit()
+    db.refresh(db_application)
+    return db_application
+

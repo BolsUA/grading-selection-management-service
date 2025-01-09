@@ -8,7 +8,8 @@ import requests
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
-from app.schemas.schemas import GradeRequest, Notification, SubmitRequest
+from app.models.models import GradingResult, UserResponse
+from app.schemas.schemas import GradeRequest, Notification, SubmitRequest, UserAppResponseNotification
 from app.db.session import get_db
 from app.core.config import settings
 from jwt import PyJWKClient
@@ -67,6 +68,10 @@ def send_to_rabbitmq(notifications: list):
 
     connection.close()
     print("Connection to RabbitMQ closed")
+
+@router.get("/health")
+def health_check():
+    return {"status": "ok"}
 
 @router.get("/grades")
 def get_grades(
@@ -181,3 +186,9 @@ def submit_results(
     send_to_rabbitmq(notifications)
     crud_grading.save_scholarship_completed(db, submit_data.scholarship_id)
     return {"message": "Results submitted successfully."}
+
+@router.put("/{application_id}/response", response_model=GradingResult)
+def update_application_response(_: TokenDep, application_id: int, user_response: UserResponse, db: Session = Depends(get_db)):
+    response = False if user_response == UserResponse.reject else True
+    send_to_rabbitmq([UserAppResponseNotification(application_id=application_id, response=response)])
+    return crud_grading.update_application_response(db, application_id, user_response)

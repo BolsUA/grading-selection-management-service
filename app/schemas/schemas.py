@@ -4,12 +4,20 @@ from datetime import datetime
 from enum import Enum
 from pydantic import BaseModel
 
+class UserResponse(str, Enum):
+    accept = "Accepted"
+    reject = "Declined"
+
 class Notification(BaseModel):
     student_id: str
     name: str
     email: str
     status: str  # "Accepted" or "Rejected"
     details: Optional[str] = None  # Either grade or rejection reason
+
+class UserAppResponseNotification(BaseModel):
+    application_id: int
+    response: bool
 
 class GradeRequest(BaseModel):
     application_id: int
