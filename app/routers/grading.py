@@ -115,7 +115,7 @@ def grade_student(
     return {"message": "Student graded successfully."}
 
 @router.post("/submit")
-def submit_results(
+async def submit_results(
     _: TokenDep,
     submit_data: SubmitRequest,
     db: Session = Depends(get_db)
@@ -167,7 +167,7 @@ def submit_results(
 
     # Notify students about their results
     student_ids = [result["student_id"] for result in final_results]
-    students = crud_grading.get_users(student_ids)
+    students = await crud_grading.get_users(student_ids)
     # students = requests.post(
     #     f"http://host.docker.internal:8000/people/internal/users/bulk",
     #     json={"user_ids": student_ids}
