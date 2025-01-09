@@ -19,7 +19,7 @@ services:
       - RABBITMQ_HOST=rabbitmq
       - RABBITMQ_PORT=5672
       - REGION=us-east-1
-      - USER_POOL_ID=
+      - USER_POOL_ID=us-east-1_BmAkOcBj4
     networks:
       - rabbitmq_network
     extra_hosts:

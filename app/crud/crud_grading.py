@@ -1,6 +1,7 @@
 from sqlalchemy.orm import Session
 from app.models.models import GradingResult, SubmissionCompleted
 from app.schemas.schemas import UserResponse
+from app.models.models import Application, ScholarshipJury
 
 def save_grading_result(db: Session, token, application_id: int, scholarship_id: int, student_id: str, grade: float, reason: str):
     jury_id = token["sub"]
@@ -87,3 +88,32 @@ def update_application_response(db: Session, application_id: int, user_response:
     db.refresh(db_application)
     return db_application
 
+def save_application(db: Session, scholarship_id: int, user_id: str, name: str):
+    application = Application(
+        scholarship_id=scholarship_id,
+        user_id=user_id,
+        name=name
+    )
+    db.add(application)
+    db.commit()
+    db.refresh(application)
+    return application
+
+def save_scholarship_jury(db: Session, scholarship_id: int, juryamount: int):
+    scholarship_jury = ScholarshipJury(
+        scholarship_id=scholarship_id,
+        juryamount=juryamount
+    )
+    db.add(scholarship_jury)
+    db.commit()
+    db.refresh(scholarship_jury)
+    return scholarship_jury
+
+def get_applications_by_scholarship(db: Session, scholarship_id: int):
+    return db.query(Application).filter(Application.scholarship_id == scholarship_id).all()
+
+def get_jury_amount_by_scholarship(db: Session, scholarship_id: int):
+    scholarship_jury = db.query(ScholarshipJury).filter(ScholarshipJury.scholarship_id == scholarship_id).first()
+    if scholarship_jury:
+        return scholarship_jury.juryamount
+    return None
