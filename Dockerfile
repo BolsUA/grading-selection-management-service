@@ -25,4 +25,4 @@ EXPOSE 8003
 USER appuser
 
 # Command to wait for the database to be ready and start the FastAPI app
-CMD ["sh", "-c", "python3 wait_for_db.py && uvicorn app.main:app --host 0.0.0.0 --port 8003"]
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port 8002"]

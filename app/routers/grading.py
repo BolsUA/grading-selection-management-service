@@ -267,10 +267,10 @@ def receive_message():
         logging.info(f"Received message: {body}")
         process_message(message)
         # Delete the message from the queue
-        # sqs.delete_message(
-        #     QueueUrl=TO_GRADING_QUEUE_URL,
-        #     ReceiptHandle=message['ReceiptHandle']
-        # )
+        sqs.delete_message(
+            QueueUrl=TO_GRADING_QUEUE_URL,
+            ReceiptHandle=message['ReceiptHandle']
+        )
 
 scheduler = BackgroundScheduler()
 scheduler.add_job(receive_message, 'interval', seconds=2, max_instances=10)
