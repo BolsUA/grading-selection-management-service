@@ -28,3 +28,14 @@ class GradeRequest(BaseModel):
 class SubmitRequest(BaseModel):
     scholarship_id: int
     juryamount: int
+
+class UserBasic(BaseModel):
+    id: str
+    name: str
+
+class User(UserBasic):
+    email: str
+    groups: List[str]
+
+class UsersBulkRequest(BaseModel):
+    user_ids: List[str]

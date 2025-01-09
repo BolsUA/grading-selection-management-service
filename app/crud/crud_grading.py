@@ -1,7 +1,15 @@
+import os
+import boto3
 from sqlalchemy.orm import Session
 from app.models.models import GradingResult, SubmissionCompleted
-from app.schemas.schemas import UserResponse
+from app.schemas.schemas import UsersBulkRequest, UserResponse, User
 from app.models.models import Application, ScholarshipJury
+from fastapi import HTTPException
+from app.core.config import settings
+
+cognito_client = boto3.client('cognito-idp',
+    region_name=os.getenv('AWS_REGION')
+)
 
 def save_grading_result(db: Session, token, application_id: int, scholarship_id: int, student_id: str, grade: float, reason: str):
     jury_id = token["sub"]
@@ -117,3 +125,41 @@ def get_jury_amount_by_scholarship(db: Session, scholarship_id: int):
     if scholarship_jury:
         return scholarship_jury.juryamount
     return None
+
+async def get_users(user_ids: list):
+    users = []
+    for user_id in user_ids:
+        try:
+            user = await get_user_info(user_id)
+            if user:
+                users.append(user)
+        except HTTPException:
+            pass  # Skip users that are not found
+    
+    return users
+
+async def get_user_info(user_id: str):
+    try:
+        response = cognito_client.admin_get_user(
+            UserPoolId=settings.USER_POOL_ID,
+            Username=user_id
+        )
+        
+        attributes = {
+            attr['Name']: attr['Value']
+            for attr in response['UserAttributes']
+        }
+
+        groups_response = cognito_client.admin_list_groups_for_user(
+            UserPoolId=settings.USER_POOL_ID,
+            Username=user_id
+        )
+        
+        return User(
+            id=response['Username'],
+            name=attributes.get('name', response['Username']),
+            email=attributes.get('email', ''),
+            groups=[group['GroupName'] for group in groups_response['Groups']]
+        )
+    except Exception:
+        raise HTTPException(status_code=404, detail=f"User {user_id} not found")

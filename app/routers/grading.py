@@ -169,10 +169,11 @@ def submit_results(
 
     # Notify students about their results
     student_ids = [result["student_id"] for result in final_results]
-    students = requests.post(
-        f"http://host.docker.internal:8000/people/internal/users/bulk",
-        json={"user_ids": student_ids}
-    ).json()
+    students = crud_grading.get_users(student_ids)
+    # students = requests.post(
+    #     f"http://host.docker.internal:8000/people/internal/users/bulk",
+    #     json={"user_ids": student_ids}
+    # ).json()
 
     for result in final_results:
         student = next((student for student in students if student["id"] == result["student_id"]), None)
