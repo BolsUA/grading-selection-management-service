@@ -44,39 +44,39 @@ def verify_token(credentials: HTTPAuthorizationCredentials = Depends(oauth2_sche
 
 TokenDep = Annotated[Dict, Depends(verify_token)]
 
-def send_to_rabbitmq(notifications: list):
-    # Use RabbitMQ host from environment variables
-    rabbitmq_host = os.getenv("RABBITMQ_HOST", "rabbitmq")
+# def send_to_rabbitmq(notifications: list):
+#     # Use RabbitMQ host from environment variables
+#     rabbitmq_host = os.getenv("RABBITMQ_HOST", "rabbitmq")
     
-    connection = pika.BlockingConnection(pika.ConnectionParameters(rabbitmq_host))
-    channel = connection.channel()
+#     connection = pika.BlockingConnection(pika.ConnectionParameters(rabbitmq_host))
+#     channel = connection.channel()
 
-    # Declare the queues
-    channel.queue_declare(queue='notification_queue', durable=True)  # For email worker
-    channel.queue_declare(queue='grading_queue', durable=True)      # For grading consumer
+#     # Declare the queues
+#     channel.queue_declare(queue='notification_queue', durable=True)  # For email worker
+#     channel.queue_declare(queue='grading_queue', durable=True)      # For grading consumer
 
-    # Publish each notification to both queues
-    for notification in notifications:
-        notification_dict = notification.dict()
+#     # Publish each notification to both queues
+#     for notification in notifications:
+#         notification_dict = notification.dict()
         
-        # Send to notification_queue
-        channel.basic_publish(
-            exchange='',
-            routing_key='notification_queue',
-            body=json.dumps(notification_dict),
-            properties=pika.BasicProperties(delivery_mode=2)
-        )
+#         # Send to notification_queue
+#         channel.basic_publish(
+#             exchange='',
+#             routing_key='notification_queue',
+#             body=json.dumps(notification_dict),
+#             properties=pika.BasicProperties(delivery_mode=2)
+#         )
         
-        # Send to grading_queue
-        channel.basic_publish(
-            exchange='',
-            routing_key='grading_queue',
-            body=json.dumps(notification_dict),
-            properties=pika.BasicProperties(delivery_mode=2)
-        )
+#         # Send to grading_queue
+#         channel.basic_publish(
+#             exchange='',
+#             routing_key='grading_queue',
+#             body=json.dumps(notification_dict),
+#             properties=pika.BasicProperties(delivery_mode=2)
+#         )
 
-    connection.close()
-    print("Connection to RabbitMQ closed")
+#     connection.close()
+#     print("Connection to RabbitMQ closed")
 
 @router.get("/health")
 def health_check():
@@ -174,7 +174,7 @@ async def submit_results(
     # ).json()
 
     for result in final_results:
-        student = next((student for student in students if student["id"] == result["student_id"]), None)
+        student = next((student for student in students if student.id == result["student_id"]), None)
         if not student:
             continue
 
@@ -191,23 +191,23 @@ async def submit_results(
         })
 
         notifications.append(Notification(
-            student_id=student["id"],
-            name=student["name"],
-            email=student["email"],
+            student_id=student.id,
+            name=student.name,
+            email=student.email,
             status=status,
             details=details
         ))
 
     # Send notifications to RabbitMQ
     send_to_sqs(message)
-    send_to_rabbitmq(notifications)
+    # send_to_rabbitmq(notifications)
     crud_grading.save_scholarship_completed(db, submit_data.scholarship_id)
     return {"message": "Results submitted successfully."}
 
 @router.put("/{application_id}/response", response_model=GradingResult)
 def update_application_response(_: TokenDep, application_id: int, user_response: UserResponse, db: Session = Depends(get_db)):
     response = False if user_response == UserResponse.reject else True
-    send_to_rabbitmq([UserAppResponseNotification(application_id=application_id, response=response)])
+    # send_to_rabbitmq([UserAppResponseNotification(application_id=application_id, response=response)])
     return crud_grading.update_application_response(db, application_id, user_response)
 
 @router.get("/applications/{scholarship_id}")

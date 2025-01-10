@@ -92,6 +92,7 @@ def check_scholarship_completed(db: Session, scholarship_id: int):
 def update_application_response(db: Session, application_id: int, user_response: UserResponse):
     db_application = db.query(GradingResult).filter(GradingResult.application_id == application_id).first()
     db_application.user_response = user_response 
+    db.add(db_application)
     db.commit()
     db.refresh(db_application)
     return db_application
