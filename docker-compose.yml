@@ -1,0 +1,75 @@
+version: '3.8'
+
+services:
+  api3:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8003:8003"
+    depends_on:
+      db3:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=postgresql://postgres3:password3@db3:5432/grading_db
+      - DB_HOST=db3
+      - DB_PORT=5432
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+      - REGION=us-east-1
+      - USER_POOL_ID=us-east-1_BmAkOcBj4
+    networks:
+      - rabbitmq_network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  db3:
+    image: postgres:13
+    environment:
+      POSTGRES_USER: postgres3
+      POSTGRES_PASSWORD: password3
+      POSTGRES_DB: grading_db
+    ports:
+      - "5435:5432"
+    networks:
+      - rabbitmq_network
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - rabbitmq_network
+
+  email_worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+      - SMTP_SERVER=smtp.gmail.com
+      - SMTP_PORT=587
+      - SMTP_USERNAME=testingrabbitmq@gmail.com
+      - SMTP_PASSWORD=paqv mvbb iqnp lhhr
+    networks:
+      - rabbitmq_network
+
+networks:
+  rabbitmq_network:
+    name: rabbitmq_network  
